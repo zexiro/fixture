@@ -1,0 +1,29 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000080;
+  --text: #FFFFFF;
+  --yellow: #FFFF00;
+  --cyan: #00FFFF;
+  --green: #00FF00;
+  --magenta: #FF00FF;
+  --red: #FF4444;
+  --black: #000000;
+  --font: 'Courier New', Courier, monospace;
+}
+
+html { font-size: 16px; }
+
+body {
+  background: var(--black);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.4;
+  min-height: 100vh;
+}
+
+button { font-family: var(--font); cursor: pointer; border: none; background: none; color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; }
+}
