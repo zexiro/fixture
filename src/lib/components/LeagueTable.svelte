@@ -1,12 +1,12 @@
 <script>
-  import { activeTable, activeLeague } from '../engine/universe.svelte.js';
+  import { universe } from '../engine/universe.svelte.js';
 
   function getTeam(id) {
-    return activeLeague?.teams.find(t => t.id === id);
+    return universe.activeLeague?.teams.find(t => t.id === id);
   }
 
   const rows = $derived(
-    (activeLeague?.table ?? [])
+    (universe.activeLeague?.table ?? [])
       .slice()
       .sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst))
   );
