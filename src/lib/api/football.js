@@ -1,4 +1,5 @@
-const BASE = 'https://api.football-data.org/v4';
+const cache = new Map();
+const TTL = { long: 300_000, short: 60_000 };
 
 export const COMPETITIONS = [
   { code: 'PL', name: 'Premier League', country: 'England', tab: 'PREM' },
@@ -6,28 +7,13 @@ export const COMPETITIONS = [
   { code: 'CL', name: 'Champions League', country: 'Europe', tab: 'UCL' },
 ];
 
-const cache = new Map();
-const TTL = { long: 300_000, short: 60_000 };
-
-export function getApiKey() {
-  return import.meta.env.VITE_FOOTBALL_DATA_KEY || localStorage.getItem('football_api_key') || null;
-}
-
-export function setApiKey(key) {
-  localStorage.setItem('football_api_key', key);
-}
-
 async function get(path, ttl) {
-  const key = getApiKey();
-  if (!key) throw new Error('NO_KEY');
-
   const hit = cache.get(path);
   if (hit && Date.now() - hit.t < ttl) return hit.d;
 
-  const res = await fetch(`${BASE}${path}`, { headers: { 'X-Auth-Token': key } });
+  const res = await fetch(`/api/football?path=${encodeURIComponent(path)}`);
 
   if (res.status === 429) throw new Error('RATE_LIMIT');
-  if (res.status === 403) throw new Error('BAD_KEY');
   if (!res.ok) throw new Error(`API_${res.status}`);
 
   const data = await res.json();

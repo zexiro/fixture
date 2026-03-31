@@ -1,16 +1,13 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { universe } from './lib/engine/universe.svelte.js';
-  import { getApiKey } from './lib/api/football.js';
   import MatchRow from './lib/components/MatchRow.svelte';
   import LeagueTable from './lib/components/LeagueTable.svelte';
   import MatchDetail from './lib/components/MatchDetail.svelte';
-  import ApiKeySetup from './lib/components/ApiKeySetup.svelte';
 
   let view = $state('results');
   let clock = $state('');
   let clockInterval;
-  let hasKey = $state(!!getApiKey());
 
   function updateClock() {
     const now = new Date();
@@ -20,15 +17,10 @@
     clock = `${h}:${m}:${s}`;
   }
 
-  function handleConnect() {
-    hasKey = true;
-    universe.init();
-  }
-
   onMount(() => {
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
-    if (hasKey) universe.init();
+    universe.init();
   });
 
   onDestroy(() => {
@@ -61,9 +53,7 @@
     <span class="clock">{clock}</span>
   </div>
 
-  {#if !hasKey}
-    <ApiKeySetup onconnect={handleConnect} />
-  {:else if universe.loading && universe.leagues.every(l => !l.loaded)}
+  {#if universe.loading && universe.leagues.every(l => !l.loaded)}
     <div class="status-screen">
       <span class="status-text">LOADING DATA...</span>
     </div>
