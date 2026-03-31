@@ -5,39 +5,37 @@
     return universe.activeLeague?.teams.find(t => t.id === id);
   }
 
-  const rows = $derived(
-    (universe.activeLeague?.table ?? [])
-      .slice()
-      .sort((a, b) => b.points - a.points || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst))
-  );
+  const rows = $derived(universe.activeTable);
 </script>
 
 <div class="table-wrap">
-  <div class="header-row">
-    <span class="pos">#</span>
-    <span class="team-name">TEAM</span>
-    <span class="stat">P</span>
-    <span class="stat">W</span>
-    <span class="stat">D</span>
-    <span class="stat">L</span>
-    <span class="stat">GD</span>
-    <span class="stat pts">PTS</span>
-  </div>
-  {#each rows as row, i}
-    {@const team = getTeam(row.teamId)}
-    {#if team}
+  {#if rows.length === 0}
+    <div class="no-data">{universe.loading ? 'LOADING...' : 'No standings available'}</div>
+  {:else}
+    <div class="header-row">
+      <span class="pos">#</span>
+      <span class="team-name">TEAM</span>
+      <span class="stat">P</span>
+      <span class="stat">W</span>
+      <span class="stat">D</span>
+      <span class="stat">L</span>
+      <span class="stat gd">GD</span>
+      <span class="stat pts">PTS</span>
+    </div>
+    {#each rows as row, i}
+      {@const team = getTeam(row.teamId)}
       <div class="table-row" class:top3={i < 3}>
-        <span class="pos">{i + 1}</span>
-        <span class="team-name">{team.shortName}</span>
+        <span class="pos">{row.position ?? i + 1}</span>
+        <span class="team-name" title={team?.name ?? ''}>{team?.displayName ?? team?.shortName ?? '???'}</span>
         <span class="stat">{row.played}</span>
         <span class="stat">{row.won}</span>
         <span class="stat">{row.drawn}</span>
         <span class="stat">{row.lost}</span>
-        <span class="stat">{row.goalsFor - row.goalsAgainst}</span>
+        <span class="stat gd">{row.goalsFor - row.goalsAgainst > 0 ? '+' : ''}{row.goalsFor - row.goalsAgainst}</span>
         <span class="stat pts">{row.points}</span>
       </div>
-    {/if}
-  {/each}
+    {/each}
+  {/if}
 </div>
 
 <style>
@@ -45,8 +43,8 @@
 
   .header-row, .table-row {
     display: grid;
-    grid-template-columns: 2ch 4ch 2ch 2ch 2ch 2ch 3ch 3ch;
-    gap: 0.4rem;
+    grid-template-columns: 3ch minmax(6ch, 1fr) repeat(4, 3ch) 4ch 4ch;
+    gap: 0.25rem;
     padding: 0.05rem 0;
   }
 
@@ -65,6 +63,9 @@
 
   .pos { color: #AAAAAA; }
   .stat { text-align: right; }
-  .pts { font-weight: bold; }
-  .team-name { letter-spacing: 0.05em; }
+  .gd { text-align: right; }
+  .pts { font-weight: bold; text-align: right; }
+  .team-name { letter-spacing: 0.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .no-data { color: #AAAAAA; font-size: 0.8125rem; padding: 1rem 0; }
 </style>

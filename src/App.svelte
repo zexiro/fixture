@@ -1,13 +1,16 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { universe } from './lib/engine/universe.svelte.js';
+  import { getApiKey } from './lib/api/football.js';
   import MatchRow from './lib/components/MatchRow.svelte';
   import LeagueTable from './lib/components/LeagueTable.svelte';
   import MatchDetail from './lib/components/MatchDetail.svelte';
+  import ApiKeySetup from './lib/components/ApiKeySetup.svelte';
 
   let view = $state('results');
   let clock = $state('');
   let clockInterval;
+  let hasKey = $state(!!getApiKey());
 
   function updateClock() {
     const now = new Date();
@@ -17,10 +20,15 @@
     clock = `${h}:${m}:${s}`;
   }
 
-  onMount(() => {
+  function handleConnect() {
+    hasKey = true;
     universe.init();
+  }
+
+  onMount(() => {
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
+    if (hasKey) universe.init();
   });
 
   onDestroy(() => {
@@ -28,8 +36,20 @@
     clearInterval(clockInterval);
   });
 
-  const liveCount = $derived(universe.matches.filter(m => m.status === 'live').length);
-  const ticker = $derived(universe.recentEvents.slice(0, 5));
+  const liveCount = $derived(
+    universe.activeMatches.filter(m => m.status === 'live' || m.status === 'halftime').length
+  );
+
+  const tickerItems = $derived(
+    universe.activeMatches
+      .filter(m => m.homeScore != null)
+      .map(m => {
+        const tag = m.status === 'live'
+          ? (m.minute != null ? `${m.minute}\u2032` : '\u25CF')
+          : m.status === 'halftime' ? 'HT' : 'FT';
+        return `${m.homeTeam.shortName} ${m.homeScore}-${m.awayScore} ${m.awayTeam.shortName} ${tag}`;
+      })
+  );
 </script>
 
 <div class="ceefax">
@@ -41,72 +61,95 @@
     <span class="clock">{clock}</span>
   </div>
 
-  <!-- HEADLINE -->
-  <div class="headline">
-    <span class="hl-left">MATCHDAY {universe.matchdayNumber}</span>
-    <span class="hl-live">{liveCount > 0 ? `${liveCount} LIVE` : 'STANDINGS'}</span>
-  </div>
+  {#if !hasKey}
+    <ApiKeySetup onconnect={handleConnect} />
+  {:else if universe.loading && universe.leagues.every(l => !l.loaded)}
+    <div class="status-screen">
+      <span class="status-text">LOADING DATA...</span>
+    </div>
+  {:else if universe.error && universe.leagues.every(l => !l.loaded)}
+    <div class="status-screen">
+      <span class="error-text">
+        {#if universe.error === 'RATE_LIMIT'}Rate limit reached — wait a moment
+        {:else if universe.error === 'BAD_KEY'}Invalid API key
+        {:else}Error: {universe.error}{/if}
+      </span>
+      <button class="retry-btn" onclick={() => universe.init()}>RETRY</button>
+    </div>
+  {:else}
 
-  <!-- LEAGUE TABS -->
-  <div class="league-tabs">
-    {#each universe.leagues as league}
-      <button
-        class="ltab"
-        class:active={league.id === universe.activeLeagueId}
-        onclick={() => universe.setActiveLeague(league.id)}
-      >
-        {league.country.slice(0, 6).toUpperCase()}
-      </button>
-    {/each}
-  </div>
+    <!-- HEADLINE -->
+    <div class="headline">
+      <span class="hl-left">
+        <button class="md-nav" onclick={() => universe.changeMatchday(-1)}>\u25C4</button>
+        MATCHDAY {universe.matchdayNumber ?? '\u2014'}
+        <button class="md-nav" onclick={() => universe.changeMatchday(1)}>\u25BA</button>
+      </span>
+      <span class="hl-live">
+        {#if universe.loading}...
+        {:else if liveCount > 0}{liveCount} LIVE
+        {:else if universe.activeMatches.length > 0 && universe.activeMatches.every(m => m.status === 'fulltime')}RESULTS
+        {:else}FIXTURES{/if}
+      </span>
+    </div>
 
-  <!-- LEAGUE NAME -->
-  <div class="league-name">{universe.activeLeague?.name ?? ''}</div>
-
-  <!-- VIEW TOGGLE -->
-  <div class="view-tabs">
-    <button class="vtab" class:active={view === 'results'} onclick={() => view = 'results'}>RESULTS</button>
-    <button class="vtab" class:active={view === 'table'} onclick={() => view = 'table'}>TABLE</button>
-  </div>
-
-  <!-- MAIN CONTENT -->
-  <div class="main-content">
-    {#if view === 'results'}
-      <div class="results-col">
-        {#each universe.activeMatches as match (match.id)}
-          <MatchRow
-            {match}
-            selected={match.id === universe.selectedMatchId}
-            onclick={() => universe.selectMatch(match.id === universe.selectedMatchId ? null : match.id)}
-          />
-        {/each}
-      </div>
-      {#if universe.selectedMatch}
-        <div class="detail-col">
-          <MatchDetail match={universe.selectedMatch} />
-        </div>
-      {/if}
-    {:else}
-      <LeagueTable />
-    {/if}
-  </div>
-
-  <!-- TICKER -->
-  {#if ticker.length > 0}
-    <div class="ticker">
-      {#each ticker as ev}
-        {@const m = universe.matches.find(x => x.id === ev.matchId)}
-        {#if m}
-          <span class="tick-item">
-            {#if ev.event.type === 'goal'}
-              ⚽ {ev.event.player} ({m.homeTeam.shortName} {m.homeScore}-{m.awayScore} {m.awayTeam.shortName})
-            {:else if ev.event.type === 'red'}
-              🟥 {ev.event.player} ({m.homeTeam.shortName} v {m.awayTeam.shortName})
-            {/if}
-          </span>
-        {/if}
+    <!-- LEAGUE TABS -->
+    <div class="league-tabs">
+      {#each universe.leagues as league}
+        <button
+          class="ltab"
+          class:active={league.id === universe.activeLeagueId}
+          onclick={() => universe.setActiveLeague(league.id)}
+        >
+          {league.tab}
+        </button>
       {/each}
     </div>
+
+    <!-- LEAGUE NAME -->
+    <div class="league-name">{universe.activeLeague?.name ?? ''}</div>
+
+    <!-- VIEW TOGGLE -->
+    <div class="view-tabs">
+      <button class="vtab" class:active={view === 'results'} onclick={() => view = 'results'}>RESULTS</button>
+      <button class="vtab" class:active={view === 'table'} onclick={() => view = 'table'}>TABLE</button>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+      {#if view === 'results'}
+        <div class="results-col">
+          {#if universe.activeMatches.length === 0}
+            <div class="no-matches">{universe.loading ? 'LOADING...' : 'No matches for this matchday'}</div>
+          {:else}
+            {#each universe.activeMatches as match (match.id)}
+              <MatchRow
+                {match}
+                selected={match.id === universe.selectedMatchId}
+                onclick={() => universe.selectMatch(match.id === universe.selectedMatchId ? null : match.id)}
+              />
+            {/each}
+          {/if}
+        </div>
+        {#if universe.selectedMatch}
+          <div class="detail-col">
+            <MatchDetail match={universe.selectedMatch} />
+          </div>
+        {/if}
+      {:else}
+        <LeagueTable />
+      {/if}
+    </div>
+
+    <!-- TICKER -->
+    {#if tickerItems.length > 0}
+      <div class="ticker">
+        {#each tickerItems as item}
+          <span class="tick-item">{item}</span>
+        {/each}
+      </div>
+    {/if}
+
   {/if}
 
   <!-- FOOTER -->
@@ -142,16 +185,47 @@
   .title { color: var(--yellow); font-weight: bold; letter-spacing: 0.3em; }
   .clock { color: var(--text); }
 
+  .status-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+  }
+  .status-text { color: var(--yellow); font-size: 0.875rem; letter-spacing: 0.1em; }
+  .error-text { color: var(--red); font-size: 0.875rem; text-align: center; }
+  .retry-btn {
+    background: #003300;
+    color: var(--green);
+    border: 1px solid var(--green);
+    padding: 0.3rem 1.2rem;
+    font-size: 0.8125rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+  }
+  .retry-btn:hover { background: #004400; }
+
   .headline {
     background: #006600;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: 0.15rem 0.75rem;
     font-size: 0.875rem;
     font-weight: bold;
   }
-  .hl-left { color: var(--yellow); }
+  .hl-left { color: var(--yellow); display: flex; align-items: center; gap: 0.4rem; }
   .hl-live { color: var(--text); }
+  .md-nav {
+    font-size: 0.75rem;
+    color: var(--text);
+    cursor: pointer;
+    padding: 0 0.2rem;
+    opacity: 0.7;
+  }
+  .md-nav:hover { opacity: 1; color: var(--yellow); }
 
   .league-tabs {
     background: #000040;
@@ -208,6 +282,12 @@
   .detail-col {
     border-top: 1px solid #336;
     background: #000060;
+  }
+
+  .no-matches {
+    color: #AAAAAA;
+    font-size: 0.8125rem;
+    padding: 1rem 0.75rem;
   }
 
   .ticker {

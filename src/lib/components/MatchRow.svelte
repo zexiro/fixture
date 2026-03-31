@@ -2,14 +2,23 @@
   let { match, onclick, selected } = $props();
 
   function statusLabel(m) {
-    if (m.status === 'upcoming') return '  -  ';
+    if (m.status === 'upcoming') {
+      if (m.utcDate) {
+        const d = new Date(m.utcDate);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
+      return '  -  ';
+    }
     if (m.status === 'halftime') return ' HT  ';
     if (m.status === 'fulltime') return ' FT  ';
-    return `${String(m.minute).padStart(2, ' ')}'   `;
+    if (m.status === 'postponed') return ' PP  ';
+    if (m.status === 'cancelled') return ' CAN ';
+    if (m.minute != null) return `${String(m.minute).padStart(2, ' ')}'   `;
+    return 'LIVE ';
   }
 
   function scoreStr(m) {
-    if (m.status === 'upcoming') return '   v   ';
+    if (m.homeScore == null || m.awayScore == null) return '   v   ';
     return `  ${m.homeScore} - ${m.awayScore}  `;
   }
 </script>
